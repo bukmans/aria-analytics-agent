@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ARIA — Analytics Request Intelligence Agent</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:       #0a0e1a;
+  --surf:     #111827;
+  --surf2:    #1a2235;
+  --surf3:    #212d40;
+  --border:   #1e2d45;
+  --accent:   #00c2a8;
+  --accent2:  #f97316;
+  --accent3:  #818cf8;
+  --text:     #e2e8f0;
+  --sub:      #94a3b8;
+  --muted:    #64748b;
+  --success:  #10b981;
+  --warning:  #f59e0b;
+  --danger:   #ef4444;
+  --sidebar:  240px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);display:flex}
+
+/* Grid overlay */
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(0,194,168,.03) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,194,168,.03) 1px,transparent 1px);
+  background-size:40px 40px;pointer-events:none;z-index:0
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+#sidebar{
+  width:var(--sidebar);min-width:var(--sidebar);height:100vh;
+  background:var(--surf);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;position:relative;z-index:10;
+  flex-shrink:0
+}
+.sb-top{padding:1.5rem 1.25rem 1rem}
+.logo{font-family:'Syne',sans-serif;font-size:1.7rem;font-weight:800;
+  color:var(--accent);letter-spacing:-.03em;line-height:1}
+.logo span{color:var(--text)}
+.logo-sub{font-family:'DM Mono',monospace;font-size:.56rem;color:var(--muted);
+  letter-spacing:.12em;text-transform:uppercase;margin-top:.25rem}
+.sb-divider{height:1px;background:var(--border);margin:.75rem 0}
+.sb-nav{padding:0 .5rem;flex:1}
+.nav-item{
+  display:flex;align-items:center;gap:.65rem;padding:.6rem .75rem;
+  border-radius:4px;font-size:.82rem;font-weight:500;color:var(--muted);
+  text-decoration:none;transition:all .15s;cursor:pointer;border:none;background:none;
+  width:100%;text-align:left
+}
+.nav-item:hover{background:var(--surf2);color:var(--text)}
+.nav-item.active{background:rgba(0,194,168,.1);color:var(--accent);font-weight:600}
+.nav-icon{width:16px;height:16px;flex-shrink:0;opacity:.7}
+.nav-item.active .nav-icon{opacity:1}
+.sb-footer{padding:1rem 1.25rem;border-top:1px solid var(--border)}
+.org-tag{font-family:'DM Mono',monospace;font-size:.58rem;color:var(--muted);
+  letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem}
+.conn-dot{display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--muted);margin-right:.4rem;transition:background .3s}
+.conn-dot.ok{background:var(--success)}
+.conn-dot.err{background:var(--danger)}
+#connLabel{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--muted)}
+
+/* ── Main ────────────────────────────────────────────────────────────────── */
+#main{flex:1;height:100vh;display:flex;flex-direction:column;overflow:hidden;position:relative;z-index:1}
+
+/* Step bar */
+#stepBar{
+  border-bottom:1px solid var(--border);padding:.75rem 1.5rem;
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--surf);flex-shrink:0
+}
+.steps{display:flex;align-items:center;gap:0}
+.step{display:flex;align-items:center;gap:.4rem;font-family:'DM Mono',monospace;
+  font-size:.62rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.step.active{color:var(--accent)}
+.step.done{color:var(--success)}
+.step-dot{width:7px;height:7px;border-radius:50%;border:1.5px solid currentColor;flex-shrink:0;transition:all .3s}
+.step.active .step-dot{background:var(--accent);border-color:var(--accent);box-shadow:0 0 8px rgba(0,194,168,.5)}
+.step.done .step-dot{background:var(--success);border-color:var(--success)}
+.step-arrow{color:var(--border);margin:0 .5rem;font-size:.7rem}
+.mode-bar{display:flex;gap:0;background:var(--surf2);border:1px solid var(--border);
+  border-radius:4px;padding:3px}
+.mode-btn{font-family:'DM Mono',monospace;font-size:.62rem;letter-spacing:.06em;
+  text-transform:uppercase;padding:.4rem .9rem;border:none;border-radius:2px;
+  cursor:pointer;color:var(--muted);background:transparent;transition:all .2s;white-space:nowrap}
+.mode-btn.active{background:var(--surf3);color:var(--text);border:1px solid var(--border)}
+.mode-btn:hover:not(.active){color:var(--text)}
+
+/* View container */
+#viewContainer{flex:1;overflow:hidden;position:relative}
+.view{position:absolute;inset:0;display:none;flex-direction:column;overflow:hidden}
+.view.active{display:flex}
+
+/* ── INTAKE VIEW ─────────────────────────────────────────────────────────── */
+#view-intake{overflow-y:auto;padding:2rem 1.5rem}
+.intake-inner{max-width:640px;margin:0 auto;padding-bottom:3rem}
+.view-title{font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;
+  letter-spacing:-.02em;margin-bottom:.25rem}
+.view-sub{font-size:.84rem;color:var(--sub);margin-bottom:1.75rem;line-height:1.5}
+
+.field{margin-bottom:1rem}
+.field label{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted);
+  letter-spacing:.1em;text-transform:uppercase;display:block;margin-bottom:.35rem}
+.req{color:var(--accent2)}
+.field input,.field textarea,.field select{
+  width:100%;background:var(--surf);border:1px solid var(--border);color:var(--text);
+  font-family:'Inter',sans-serif;font-size:.875rem;padding:.65rem .9rem;border-radius:4px;
+  outline:none;transition:border-color .2s
+}
+.field textarea{resize:vertical;min-height:110px;line-height:1.6}
+.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--accent)}
+.field select option{background:var(--surf)}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+
+/* Email simulation form */
+.email-chrome{background:var(--surf);border:1px solid var(--border);border-radius:5px;
+  overflow:hidden;margin-bottom:1.25rem}
+.email-chrome-bar{background:var(--surf2);padding:.55rem 1rem;display:flex;
+  align-items:center;gap:.6rem;border-bottom:1px solid var(--border)}
+.ec-dot{width:8px;height:8px;border-radius:50%}
+.ec-title{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted);flex:1;text-align:center}
+.email-field{display:flex;align-items:flex-start;gap:.75rem;padding:.5rem 1rem;
+  border-bottom:1px solid var(--border)}
+.email-field:last-child{border-bottom:none}
+.ef-label{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted);
+  letter-spacing:.08em;text-transform:uppercase;min-width:52px;padding-top:.15rem}
+.email-field input,.email-field textarea{
+  background:transparent;border:none;color:var(--text);
+  font-family:'Inter',sans-serif;font-size:.875rem;outline:none;width:100%;resize:none
+}
+.email-field textarea{min-height:100px;line-height:1.6}
+
+/* Pipeline steps (email mode) */
+.pipeline{background:var(--surf);border:1px solid var(--border);border-radius:4px;
+  padding:.75rem 1rem;margin-bottom:1.25rem}
+.pipe-label{font-family:'DM Mono',monospace;font-size:.58rem;color:var(--muted);
+  letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem}
+.pipe-steps{display:flex;align-items:center;flex-wrap:wrap;gap:0}
+.ps{display:flex;align-items:center;gap:.35rem;font-family:'DM Mono',monospace;
+  font-size:.58rem;color:var(--muted);letter-spacing:.04em;transition:color .3s}
+.ps.active{color:var(--accent)}
+.ps.done{color:var(--success)}
+.ps-dot{width:7px;height:7px;border-radius:50%;border:1.5px solid currentColor;flex-shrink:0;transition:all .3s}
+.ps.active .ps-dot{background:var(--accent);border-color:var(--accent);box-shadow:0 0 5px rgba(0,194,168,.6)}
+.ps.done .ps-dot{background:var(--success);border-color:var(--success)}
+.ps-arr{color:var(--border);margin:0 .3rem;font-size:.65rem}
+
+.error-msg{background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.25);
+  border-radius:4px;padding:.7rem 1rem;font-family:'DM Mono',monospace;font-size:.72rem;
+  color:var(--danger);margin-bottom:1rem;display:none}
+.error-msg.show{display:block}
+
+.btn-primary{
+  width:100%;background:var(--accent);color:var(--bg);font-family:'Syne',sans-serif;
+  font-size:.82rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  padding:.85rem 1.5rem;border:none;border-radius:4px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:.55rem;transition:all .2s
+}
+.btn-primary:hover:not(:disabled){background:#00d4b8;box-shadow:0 4px 20px rgba(0,194,168,.25);transform:translateY(-1px)}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
+
+/* ── ANALYZING VIEW ──────────────────────────────────────────────────────── */
+#view-analyzing{align-items:center;justify-content:center;gap:2rem;flex-direction:column}
+.pulse-wrap{position:relative;width:64px;height:64px}
+.pulse-ring{
+  width:64px;height:64px;border-radius:50%;border:2px solid var(--accent);
+  animation:pulseRing 1.6s ease infinite
+}
+.pulse-core{
+  position:absolute;inset:10px;border-radius:50%;background:var(--accent);
+  animation:pulseCore 1.6s ease infinite
+}
+.proc-label{font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;color:var(--accent)}
+.proc-steps{display:flex;flex-direction:column;gap:.4rem;min-width:280px}
+.proc-step{font-family:'DM Mono',monospace;font-size:.7rem;color:var(--muted);
+  display:flex;align-items:center;gap:.5rem;transition:color .3s}
+.proc-step.active{color:var(--accent)}
+.proc-step.done{color:var(--success)}
+.proc-dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0}
+
+/* ── CHAT VIEW ───────────────────────────────────────────────────────────── */
+#view-chat{flex-direction:column}
+
+/* Quick triage card */
+#qtCard{
+  flex-shrink:0;padding:.85rem 1.5rem;background:var(--surf);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:1rem;flex-wrap:wrap
+}
+.qt-badges{display:flex;flex-wrap:wrap;gap:.4rem;flex:1}
+.badge{font-family:'DM Mono',monospace;font-size:.6rem;letter-spacing:.07em;text-transform:uppercase;
+  padding:.25rem .6rem;border-radius:2px;border:1px solid}
+.b-cat{color:var(--accent3);border-color:rgba(129,140,248,.3);background:rgba(129,140,248,.07)}
+.b-low{color:var(--success);border-color:rgba(16,185,129,.3);background:rgba(16,185,129,.07)}
+.b-medium{color:var(--warning);border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.07)}
+.b-high{color:var(--danger);border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.07)}
+.b-route{color:var(--accent2);border-color:rgba(249,115,22,.3);background:rgba(249,115,22,.07)}
+.b-effort{color:var(--muted);border-color:var(--border);background:rgba(255,255,255,.02)}
+.qt-note{font-family:'DM Mono',monospace;font-size:.58rem;color:var(--muted);
+  letter-spacing:.06em;white-space:nowrap}
+
+/* Chat messages */
+#chatMessages{
+  flex:1;overflow-y:auto;padding:1.25rem 1.5rem;
+  display:flex;flex-direction:column;gap:1rem;scroll-behavior:smooth
+}
+.msg{display:flex;gap:.75rem;animation:fadeUp .3s ease both}
+.msg.aria-msg{align-self:flex-start;max-width:80%}
+.msg.user-msg{align-self:flex-end;flex-direction:row-reverse;max-width:75%}
+.msg-avatar{
+  width:30px;height:30px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Syne',sans-serif;font-size:.7rem;font-weight:700;margin-top:2px
+}
+.aria-avatar{background:rgba(0,194,168,.15);border:1px solid rgba(0,194,168,.3);color:var(--accent)}
+.user-avatar{background:var(--surf2);border:1px solid var(--border);color:var(--sub)}
+.msg-bubble{
+  background:var(--surf);border:1px solid var(--border);border-radius:6px;
+  padding:.8rem 1rem;font-size:.875rem;line-height:1.65
+}
+.msg.aria-msg .msg-bubble{border-left:3px solid var(--accent)}
+.msg.user-msg .msg-bubble{background:var(--surf2);border-color:var(--surf3)}
+.msg-bubble strong{color:var(--text);font-weight:600}
+.msg-bubble code{font-family:'DM Mono',monospace;font-size:.78rem;
+  background:var(--surf2);padding:.1rem .35rem;border-radius:2px;color:var(--accent3)}
+.q-list-chat{list-style:none;display:flex;flex-direction:column;gap:.5rem;margin-top:.65rem}
+.q-list-chat li{display:flex;gap:.5rem;align-items:flex-start;font-size:.84rem;color:var(--sub)}
+.q-num{font-family:'DM Mono',monospace;font-size:.58rem;color:var(--accent);
+  background:rgba(0,194,168,.1);border:1px solid rgba(0,194,168,.2);
+  padding:.1rem .35rem;border-radius:2px;flex-shrink:0;margin-top:.15rem}
+
+/* Typing indicator */
+#typingBubble{display:none;align-self:flex-start;align-items:center;gap:.75rem}
+#typingBubble.show{display:flex}
+.typing-dots{display:flex;gap:.3rem;background:var(--surf);border:1px solid var(--border);
+  border-left:3px solid var(--accent);border-radius:6px;padding:.75rem 1rem}
+.typing-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:typingDot 1.2s ease infinite}
+.typing-dot:nth-child(2){animation-delay:.2s}
+.typing-dot:nth-child(3){animation-delay:.4s}
+
+/* Chat input */
+#chatInputBar{
+  flex-shrink:0;border-top:1px solid var(--border);background:var(--surf);
+  padding:1rem 1.5rem
+}
+.chat-input-row{display:flex;gap:.6rem;align-items:flex-end;margin-bottom:.75rem}
+#chatInput{
+  flex:1;background:var(--surf2);border:1px solid var(--border);color:var(--text);
+  font-family:'Inter',sans-serif;font-size:.875rem;padding:.7rem 1rem;border-radius:4px;
+  outline:none;resize:none;line-height:1.5;max-height:140px;overflow-y:auto;
+  transition:border-color .2s
+}
+#chatInput:focus{border-color:var(--accent)}
+#sendBtn{
+  background:var(--accent);color:var(--bg);border:none;border-radius:4px;
+  width:40px;height:40px;flex-shrink:0;cursor:pointer;display:flex;
+  align-items:center;justify-content:center;transition:all .2s
+}
+#sendBtn:hover:not(:disabled){background:#00d4b8;box-shadow:0 4px 16px rgba(0,194,168,.3)}
+#sendBtn:disabled{opacity:.4;cursor:not-allowed}
+.finalize-row{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.finalize-hint{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted);letter-spacing:.04em}
+#finalizeBtn{
+  font-family:'Syne',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.04em;
+  text-transform:uppercase;padding:.55rem 1.25rem;border:none;border-radius:3px;
+  cursor:pointer;transition:all .2s;white-space:nowrap;
+  background:rgba(0,194,168,.1);color:var(--accent);border:1px solid rgba(0,194,168,.25)
+}
+#finalizeBtn:hover{background:var(--accent);color:var(--bg);box-shadow:0 4px 16px rgba(0,194,168,.25)}
+#finalizeBtn.ready{background:var(--accent);color:var(--bg);animation:pulse 2s ease infinite}
+
+/* ── FINALIZING VIEW ─────────────────────────────────────────────────────── */
+#view-finalizing{align-items:center;justify-content:center;gap:1.5rem;flex-direction:column}
+
+/* ── TICKET VIEW ─────────────────────────────────────────────────────────── */
+#view-ticket{overflow-y:auto;padding:1.5rem}
+.ticket-view-inner{max-width:800px;margin:0 auto;padding-bottom:3rem}
+
+.ticket-topbar{display:flex;align-items:flex-start;justify-content:space-between;
+  margin-bottom:1.25rem;gap:1rem;flex-wrap:wrap}
+.ticket-id-block{}
+.tid{font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted);letter-spacing:.1em}
+.ttitle{font-family:'Syne',sans-serif;font-size:1.25rem;font-weight:800;
+  letter-spacing:-.02em;margin-top:.2rem}
+.ttitle .accent{color:var(--accent)}
+.btn-secondary{font-family:'DM Mono',monospace;font-size:.68rem;letter-spacing:.05em;
+  padding:.5rem 1rem;border:1px solid var(--border);border-radius:3px;
+  background:transparent;color:var(--muted);cursor:pointer;transition:all .2s;white-space:nowrap}
+.btn-secondary:hover{border-color:var(--muted);color:var(--text)}
+
+.panel-grid{display:grid;grid-template-columns:1fr 1fr;gap:.85rem;margin-bottom:.85rem}
+.panel{background:var(--surf);border:1px solid var(--border);border-radius:5px;padding:1.1rem}
+.panel.full{grid-column:1/-1}
+.panel-label{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted);
+  letter-spacing:.1em;text-transform:uppercase;margin-bottom:.65rem;
+  display:flex;align-items:center;gap:.5rem}
+.panel-label::after{content:'';flex:1;height:1px;background:var(--border)}
+.panel-content{font-size:.875rem;line-height:1.7}
+
+.ticket-mono{
+  background:var(--bg);border:1px solid var(--border);border-top:3px solid var(--accent);
+  border-radius:4px;padding:1.25rem;font-family:'DM Mono',monospace;font-size:.74rem;
+  line-height:1.9;white-space:pre-wrap;word-break:break-word
+}
+.ticket-meta{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted);
+  margin-bottom:.65rem;letter-spacing:.06em}
+
+/* Automation outputs */
+.auto-label{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted);
+  letter-spacing:.1em;text-transform:uppercase;margin:1.25rem 0 .5rem;
+  display:flex;align-items:center;gap:.5rem}
+.auto-label::before{content:'⚡'}
+.auto-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+.auto-card{background:var(--surf);border:1px solid var(--border);border-radius:4px;padding:1rem}
+.auto-card.full{grid-column:1/-1;border-left:3px solid var(--accent)}
+.auto-card-label{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted);
+  letter-spacing:.1em;text-transform:uppercase;margin-bottom:.55rem;
+  display:flex;align-items:center;gap:.4rem}
+.sent-tag{font-size:.55rem;color:var(--success);background:rgba(16,185,129,.1);
+  border:1px solid rgba(16,185,129,.2);padding:.1rem .4rem;border-radius:2px;margin-left:auto}
+.auto-body{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text);line-height:1.8}
+.auto-body .k{color:var(--muted)}
+
+.ticket-actions{display:flex;gap:.75rem;margin-top:1.25rem;flex-wrap:wrap}
+.btn-copy{font-family:'DM Mono',monospace;font-size:.68rem;color:var(--accent);
+  background:rgba(0,194,168,.07);border:1px solid rgba(0,194,168,.2);
+  padding:.5rem 1rem;border-radius:3px;cursor:pointer;transition:all .2s;letter-spacing:.04em}
+.btn-copy:hover{background:rgba(0,194,168,.15)}
+
+/* ── Animations ──────────────────────────────────────────────────────────── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulseRing{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.1);opacity:.6}}
+@keyframes pulseCore{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes typingDot{0%,80%,100%{transform:scale(0.7);opacity:.4}40%{transform:scale(1);opacity:1}}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,194,168,.4)}70%{box-shadow:0 0 0 8px rgba(0,194,168,0)}}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media(max-width:700px){
+  #sidebar{display:none}
+  .field-row,.panel-grid,.auto-grid{grid-template-columns:1fr}
+  .panel.full,.auto-card.full{grid-column:1}
+  #stepBar{flex-direction:column;align-items:flex-start;gap:.75rem}
+  #view-intake{padding:1rem}
+}
+</style>
+</head>
+<body>
+
+<!-- ── Sidebar ────────────────────────────────────────────────────────────── -->
+<aside id="sidebar">
+  <div class="sb-top">
+    <div class="logo">ARIA<span>.</span></div>
+    <div class="logo-sub">Analytics Request Intelligence Agent</div>
+  </div>
+  <div class="sb-divider"></div>
+  <nav class="sb-nav">
+    <a href="index.html" class="nav-item active">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+      </svg>
+      Triage
+    </a>
+    <a href="dashboard.html" class="nav-item">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+        <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+      </svg>
+      Dashboard
+    </a>
+  </nav>
+  <div class="sb-footer">
+    <div class="org-tag">CRS · Enterprise Analytics</div>
+    <div>
+      <span class="conn-dot" id="connDot"></span>
+      <span id="connLabel">Connecting...</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ── Main ──────────────────────────────────────────────────────────────── -->
+<main id="main">
+
+  <!-- Step bar -->
+  <div id="stepBar">
+    <div class="steps">
+      <div class="step active" id="step1"><div class="step-dot"></div>Intake</div>
+      <div class="step-arrow">→</div>
+      <div class="step" id="step2"><div class="step-dot"></div>Analysis</div>
+      <div class="step-arrow">→</div>
+      <div class="step" id="step3"><div class="step-dot"></div>Refine</div>
+      <div class="step-arrow">→</div>
+      <div class="step" id="step4"><div class="step-dot"></div>Ticket</div>
+    </div>
+    <div class="mode-bar">
+      <button class="mode-btn active" id="modeManual" onclick="setMode('manual')">📋 Manual</button>
+      <button class="mode-btn" id="modeEmail" onclick="setMode('email')">📧 Email Simulation</button>
+    </div>
+  </div>
+
+  <div id="viewContainer">
+
+    <!-- ── INTAKE ─────────────────────────────────────────────────────── -->
+    <div class="view active" id="view-intake">
+      <div style="overflow-y:auto;flex:1;padding:2rem 1.5rem">
+      <div class="intake-inner">
+
+        <!-- MANUAL FORM -->
+        <div id="manualForm">
+          <div class="view-title">Submit an Analytics Request</div>
+          <div class="view-sub">Describe your need in plain language — ARIA will triage it, ask a few smart questions, then generate your project ticket.</div>
+
+          <div class="field">
+            <label>Your Name <span class="req">*</span></label>
+            <input type="text" id="mName" placeholder="e.g. Sarah Mensah"/>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Department / Program <span class="req">*</span></label>
+              <input type="text" id="mDept" placeholder="e.g. Finance, MEAL, Supply Chain"/>
+            </div>
+            <div class="field">
+              <label>Country / Region</label>
+              <input type="text" id="mCountry" placeholder="e.g. Ethiopia, Global"/>
+            </div>
+          </div>
+          <div class="field">
+            <label>Describe your analytics need <span class="req">*</span></label>
+            <textarea id="mDesc" placeholder="e.g. I need a monthly dashboard showing cash transfer volumes by country and beneficiary category. We're presenting to donors in 3 weeks..."></textarea>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Urgency</label>
+              <select id="mUrgency">
+                <option value="Standard">Standard (within sprint)</option>
+                <option value="High">High (this week)</option>
+                <option value="Critical">Critical (today / tomorrow)</option>
+                <option value="Low">Low (next quarter)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Data Domain</label>
+              <select id="mDomain">
+                <option value="Not specified">Not sure</option>
+                <option value="Finance">Finance / Accounting</option>
+                <option value="Supply Chain">Supply Chain</option>
+                <option value="People & Culture">People & Culture</option>
+                <option value="Programs / MEAL">Programs / MEAL</option>
+                <option value="Beneficiary Data">Beneficiary Data</option>
+                <option value="Cross-functional">Cross-functional</option>
+              </select>
+            </div>
+          </div>
+          <div class="error-msg" id="manualErr"></div>
+          <button class="btn-primary" id="manualSubmitBtn" onclick="submitManual()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            Analyse Request
+          </button>
+        </div>
+
+        <!-- EMAIL SIMULATION FORM -->
+        <div id="emailForm" style="display:none">
+          <div class="view-title">Email Simulation</div>
+          <div class="view-sub">Simulates what Power Automate receives when a stakeholder emails analytics-requests@crs.org — ARIA returns a complete ticket immediately, no chat phase.</div>
+
+          <div class="pipeline" id="pipelineBar">
+            <div class="pipe-label">Automation Pipeline</div>
+            <div class="pipe-steps">
+              <div class="ps" id="ps1"><div class="ps-dot"></div>Email received</div><div class="ps-arr">→</div>
+              <div class="ps" id="ps2"><div class="ps-dot"></div>Flow triggered</div><div class="ps-arr">→</div>
+              <div class="ps" id="ps3"><div class="ps-dot"></div>ARIA processing</div><div class="ps-arr">→</div>
+              <div class="ps" id="ps4"><div class="ps-dot"></div>Teams notified</div><div class="ps-arr">→</div>
+              <div class="ps" id="ps5"><div class="ps-dot"></div>Analyst emailed</div><div class="ps-arr">→</div>
+              <div class="ps" id="ps6"><div class="ps-dot"></div>Log updated</div><div class="ps-arr">→</div>
+              <div class="ps" id="ps7"><div class="ps-dot"></div>Requester confirmed</div>
+            </div>
+          </div>
+
+          <div class="email-chrome">
+            <div class="email-chrome-bar">
+              <div class="ec-dot" style="background:#ef4444"></div>
+              <div class="ec-dot" style="background:#f59e0b"></div>
+              <div class="ec-dot" style="background:#10b981"></div>
+              <div class="ec-title">New Message — analytics-requests@crs.org</div>
+            </div>
+            <div class="email-field">
+              <div class="ef-label">From</div>
+              <input type="text" id="eFrom" placeholder="sarah.mensah@crs.org"/>
+            </div>
+            <div class="email-field">
+              <div class="ef-label">To</div>
+              <input type="text" value="analytics-requests@crs.org" readonly style="color:var(--muted)"/>
+            </div>
+            <div class="email-field">
+              <div class="ef-label">Subject</div>
+              <input type="text" id="eSubject" placeholder="Analytics request — Beneficiary reach dashboard"/>
+            </div>
+            <div class="email-field">
+              <div class="ef-label">Body</div>
+              <textarea id="eBody" placeholder="Hi Analytics team,&#10;&#10;I need a dashboard showing our beneficiary reach by country and program type for the Q2 donor report. Data should refresh monthly. Presenting to USAID in 3 weeks.&#10;&#10;Thanks, Sarah"></textarea>
+            </div>
+          </div>
+          <div class="error-msg" id="emailErr"></div>
+          <button class="btn-primary" id="emailSubmitBtn" onclick="submitEmail()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+            Send Email → Trigger Pipeline
+          </button>
+        </div>
+
+      </div>
+      </div>
+    </div>
+
+    <!-- ── ANALYZING ───────────────────────────────────────────────────── -->
+    <div class="view" id="view-analyzing">
+      <div class="pulse-wrap"><div class="pulse-ring"></div><div class="pulse-core"></div></div>
+      <div class="proc-label">ARIA Agent Processing</div>
+      <div class="proc-steps">
+        <div class="proc-step" id="proc1"><div class="proc-dot"></div>Parsing request content...</div>
+        <div class="proc-step" id="proc2"><div class="proc-dot"></div>Classifying request type & complexity...</div>
+        <div class="proc-step" id="proc3"><div class="proc-dot"></div>Routing to optimal analyst profile...</div>
+        <div class="proc-step" id="proc4"><div class="proc-dot"></div>Generating scoping questions...</div>
+        <div class="proc-step" id="proc5"><div class="proc-dot"></div>Preparing refinement session...</div>
+      </div>
+    </div>
+
+    <!-- ── CHAT ───────────────────────────────────────────────────────── -->
+    <div class="view" id="view-chat">
+      <!-- Quick triage strip -->
+      <div id="qtCard">
+        <div class="qt-badges" id="qtBadges"></div>
+        <div class="qt-note">preliminary · updates as we talk</div>
+      </div>
+
+      <!-- Messages -->
+      <div id="chatMessages">
+        <!-- Populated by JS -->
+      </div>
+
+      <!-- Typing indicator -->
+      <div id="typingBubble" style="margin-left:1.5rem;margin-bottom:.5rem">
+        <div style="width:30px;height:30px;border-radius:50%;background:rgba(0,194,168,.15);border:1px solid rgba(0,194,168,.3);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:.7rem;font-weight:700;color:var(--accent);flex-shrink:0">A</div>
+        <div class="typing-dots">
+          <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+        </div>
+      </div>
+
+      <!-- Input bar -->
+      <div id="chatInputBar">
+        <div class="chat-input-row">
+          <textarea id="chatInput" placeholder="Reply to ARIA, add context, or ask a question..." rows="1"
+            onkeydown="handleChatKey(event)" oninput="autoGrow(this)"></textarea>
+          <button id="sendBtn" onclick="sendMessage()" title="Send (Enter)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+            </svg>
+          </button>
+        </div>
+        <div class="finalize-row">
+          <span class="finalize-hint" id="finalizeHint">Answer ARIA's questions, then finalize when ready.</span>
+          <button id="finalizeBtn" onclick="finalizeTicket()">Generate Final Ticket →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── FINALIZING ──────────────────────────────────────────────────── -->
+    <div class="view" id="view-finalizing">
+      <div class="pulse-wrap"><div class="pulse-ring"></div><div class="pulse-core"></div></div>
+      <div class="proc-label" style="color:var(--accent3)">Generating Ticket</div>
+      <div class="proc-steps">
+        <div class="proc-step active" id="fin1"><div class="proc-dot"></div>Synthesising conversation...</div>
+        <div class="proc-step" id="fin2"><div class="proc-dot"></div>Structuring project ticket...</div>
+        <div class="proc-step" id="fin3"><div class="proc-dot"></div>Calculating effort & dependencies...</div>
+      </div>
+    </div>
+
+    <!-- ── TICKET ──────────────────────────────────────────────────────── -->
+    <div class="view" id="view-ticket">
+      <div style="overflow-y:auto;flex:1;padding:1.5rem">
+      <div class="ticket-view-inner">
+
+        <div class="ticket-topbar">
+          <div class="ticket-id-block">
+            <div class="tid" id="ticketIdLabel"></div>
+            <div class="ttitle">Triage <span class="accent">Complete</span></div>
+          </div>
+          <button class="btn-secondary" onclick="resetAll()">← New Request</button>
+        </div>
+
+        <div class="qt-badges" id="ticketBadges" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:.4rem"></div>
+
+        <div class="panel-grid">
+          <div class="panel">
+            <div class="panel-label">Classification</div>
+            <div class="panel-content" id="classPanel"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-label">Routing Decision</div>
+            <div class="panel-content" id="routePanel"></div>
+          </div>
+          <div class="panel full">
+            <div class="panel-label">Scoping Brief</div>
+            <div class="panel-content" id="scopePanel"></div>
+          </div>
+          <div class="panel full">
+            <div class="panel-label">Generated Ticket</div>
+            <div class="ticket-meta" id="ticketMeta"></div>
+            <div class="ticket-mono" id="ticketMono"></div>
+          </div>
+        </div>
+
+        <!-- Email automation outputs -->
+        <div id="autoSection" style="display:none">
+          <div class="auto-label">Automation outputs dispatched simultaneously</div>
+          <div class="auto-grid">
+            <div class="auto-card">
+              <div class="auto-card-label">💬 Teams Channel <span class="sent-tag">✓ Sent</span></div>
+              <div class="auto-body" id="teamsOut"></div>
+            </div>
+            <div class="auto-card">
+              <div class="auto-card-label">📨 Analyst Email <span class="sent-tag">✓ Sent</span></div>
+              <div class="auto-body" id="analystOut"></div>
+            </div>
+            <div class="auto-card">
+              <div class="auto-card-label">📊 SharePoint Log <span class="sent-tag">✓ Logged</span></div>
+              <div class="auto-body" id="spOut"></div>
+            </div>
+            <div class="auto-card full">
+              <div class="auto-card-label">✅ Requester Confirmation <span class="sent-tag">✓ Sent</span></div>
+              <div class="auto-body" id="requesterOut"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Manual confirmation -->
+        <div id="manualConfirm" style="display:none;margin-top:1rem">
+          <div class="auto-label">Confirmation sent to requester</div>
+          <div class="auto-card full" style="display:block">
+            <div class="auto-card-label">📨 Requester Confirmation <span class="sent-tag">✓ Sent</span></div>
+            <div class="auto-body" id="manualRequesterOut"></div>
+          </div>
+        </div>
+
+        <div class="ticket-actions">
+          <button class="btn-copy" onclick="copyTicket()">⊕ Copy Ticket</button>
+          <button class="btn-copy" onclick="copyBrief()">⊕ Copy Scoping Brief</button>
+          <button class="btn-secondary" onclick="resetAll()">New Request</button>
+        </div>
+
+      </div>
+      </div>
+    </div>
+
+  </div><!-- /viewContainer -->
+</main>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────────────
+// Detect backend: if opened via Live Server (port 5500) use localhost:3000,
+// otherwise assume same-origin (Vercel / Express serving static files).
+const BACKEND = (location.port === '5500' || location.port === '5501')
+  ? 'http://localhost:3000'
+  : (location.protocol === 'file:' ? 'http://localhost:3000' : '');
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let S = {
+  mode: 'manual',
+  phase: 'intake',
+  ctx: null,       // sessionContext from backend
+  qt: null,        // quickTriage result
+  msgs: [],        // chat message history [{role,content}]
+  chatTurns: 0,    // number of user messages sent
+  ticketId: null,
+  ticket: null,
+  requesterName: ''
+};
+
+// ── DOM helpers ───────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  $(('view-' + name)).classList.add('active');
+}
+
+function setStep(n) {
+  [1,2,3,4].forEach(i => {
+    const el = $('step' + i);
+    el.className = 'step' + (i < n ? ' done' : i === n ? ' active' : '');
+  });
+}
+
+function showErr(id, msg) { const el = $(id); el.textContent = msg; el.classList.add('show'); }
+function hideErr(id) { $(id).classList.remove('show'); }
+
+function animateProc(prefix, count, done) {
+  let i = 1;
+  const iv = setInterval(() => {
+    for (let j = 1; j <= count; j++) {
+      const el = $(prefix + j);
+      if (!el) continue;
+      el.className = 'proc-step' + (j < i ? ' done' : j === i ? ' active' : '');
+    }
+    i++;
+    if (i > count) { clearInterval(iv); if (done) done(); }
+  }, 600);
+  return iv;
+}
+
+function setPipe(n) {
+  for (let i = 1; i <= 7; i++) {
+    const el = $('ps' + i);
+    if (!el) continue;
+    el.className = 'ps' + (i < n ? ' done' : i === n ? ' active' : '');
+  }
+}
+
+function resetPipe() { for (let i=1;i<=7;i++){const e=$('ps'+i);if(e)e.className='ps';} }
+
+// ── Backend check ─────────────────────────────────────────────────────────────
+async function checkBackend() {
+  try {
+    const r = await fetch(`${BACKEND}/health`, { signal: AbortSignal.timeout(4000) });
+    if (r.ok) {
+      $('connDot').className = 'conn-dot ok';
+      $('connLabel').textContent = 'Backend connected';
+      return true;
+    }
+    throw new Error();
+  } catch {
+    $('connDot').className = 'conn-dot err';
+    $('connLabel').textContent = 'Backend offline';
+    return false;
+  }
+}
+checkBackend();
+
+// ── Mode switch ───────────────────────────────────────────────────────────────
+function setMode(mode) {
+  S.mode = mode;
+  $('modeManual').className = 'mode-btn' + (mode === 'manual' ? ' active' : '');
+  $('modeEmail').className  = 'mode-btn' + (mode === 'email'  ? ' active' : '');
+  $('manualForm').style.display = mode === 'manual' ? '' : 'none';
+  $('emailForm').style.display  = mode === 'email'  ? '' : 'none';
+  hideErr('manualErr'); hideErr('emailErr');
+  resetPipe();
+}
+
+// ── Submit: Manual ────────────────────────────────────────────────────────────
+async function submitManual() {
+  hideErr('manualErr');
+  const name    = $('mName').value.trim();
+  const dept    = $('mDept').value.trim();
+  const country = $('mCountry').value.trim();
+  const desc    = $('mDesc').value.trim();
+  const urgency = $('mUrgency').value;
+  const domain  = $('mDomain').value;
+
+  if (!name)             return showErr('manualErr', 'Please enter your name.');
+  if (!dept)             return showErr('manualErr', 'Please enter your department.');
+  if (desc.length < 15)  return showErr('manualErr', 'Please describe your analytics need in more detail.');
+
+  S.requesterName = name;
+  $('manualSubmitBtn').disabled = true;
+  setStep(2);
+  showView('analyzing');
+  const iv = animateProc('proc', 5);
+
+  try {
+    const res = await fetch(`${BACKEND}/api/triage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requester: name, department: dept, country, description: desc, urgency, dataDomain: domain })
+    });
+    clearInterval(iv);
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Backend error'); }
+    const data = await res.json();
+
+    S.ctx = data.sessionContext;
+    S.qt  = data.quickTriage;
+
+    // Build initial chat messages
+    const initUserMsg = `Request from ${name} (${dept}${country ? ', '+country : ''}): "${desc}" — Urgency: ${urgency} | Domain: ${domain}`;
+    S.msgs = [
+      { role: 'user', content: initUserMsg },
+      { role: 'assistant', content: data.chatOpener }
+    ];
+    S.chatTurns = 0;
+
+    setStep(3);
+    renderChatView(data.quickTriage, data.chatOpener, data.clarifyingQuestions);
+    showView('chat');
+  } catch (err) {
+    clearInterval(iv);
+    setStep(1);
+    showView('intake');
+    $('manualSubmitBtn').disabled = false;
+    showErr('manualErr', err.message || 'Could not reach backend. Is server.js running?');
+  }
+}
+
+// ── Submit: Email ─────────────────────────────────────────────────────────────
+async function submitEmail() {
+  hideErr('emailErr');
+  const from    = $('eFrom').value.trim();
+  const subject = $('eSubject').value.trim();
+  const body    = $('eBody').value.trim();
+
+  if (!from)           return showErr('emailErr', 'Please enter a sender email address.');
+  if (body.length < 15) return showErr('emailErr', 'Please write an email body.');
+
+  S.requesterName = from;
+  $('emailSubmitBtn').disabled = true;
+  setPipe(1);
+  await sleep(400); setPipe(2);
+
+  setStep(2);
+  showView('analyzing');
+  const iv = animateProc('proc', 5);
+
+  try {
+    setPipe(3);
+    const res = await fetch(`${BACKEND}/api/triage/email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, subject, body })
+    });
+    clearInterval(iv);
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Backend error'); }
+    const data = await res.json();
+
+    await sleep(300); setPipe(4);
+    await sleep(400); setPipe(5);
+    await sleep(400); setPipe(6);
+    await sleep(400); setPipe(7);
+
+    setStep(4);
+    showView('ticket');
+    renderTicket(data.triage, data.ticketId, true, { from, subject, body });
+  } catch (err) {
+    clearInterval(iv);
+    setStep(1);
+    showView('intake');
+    $('emailSubmitBtn').disabled = false;
+    resetPipe();
+    showErr('emailErr', err.message || 'Could not reach backend. Is server.js running?');
+  }
+}
+
+// ── Chat view render ──────────────────────────────────────────────────────────
+function renderChatView(qt, opener, questions) {
+  // Quick triage badges
+  const cx = { Low:'b-low', Medium:'b-medium', High:'b-high' };
+  $('qtBadges').innerHTML = `
+    <span class="badge b-cat">📊 ${qt.category}</span>
+    <span class="badge ${cx[qt.complexity]||'b-medium'}">⚡ ${qt.complexity}</span>
+    <span class="badge b-route">→ ${qt.routed_to}</span>
+    <span class="badge b-effort">⏱ ${qt.effort_estimate}</span>`;
+
+  // Clear messages and add opener
+  $('chatMessages').innerHTML = '';
+  addMessage('aria', opener, questions);
+}
+
+function addMessage(role, text, questions) {
+  const el = document.createElement('div');
+  el.className = `msg ${role === 'aria' ? 'aria-msg' : 'user-msg'}`;
+
+  const initial = role === 'aria' ? 'A'
+    : (S.requesterName ? S.requesterName[0].toUpperCase() : 'U');
+  const avatarClass = role === 'aria' ? 'aria-avatar' : 'user-avatar';
+
+  let qHtml = '';
+  if (questions && questions.length) {
+    qHtml = `<ul class="q-list-chat">` +
+      questions.map((q,i) => `<li><span class="q-num">Q${i+1}</span><span>${esc(q)}</span></li>`).join('') +
+      `</ul>`;
+  }
+
+  el.innerHTML = `
+    <div class="msg-avatar ${avatarClass}">${initial}</div>
+    <div class="msg-bubble">${renderMd(text)}${qHtml}</div>`;
+
+  $('chatMessages').appendChild(el);
+  $('chatMessages').scrollTop = $('chatMessages').scrollHeight;
+}
+
+// ── Chat send ─────────────────────────────────────────────────────────────────
+async function sendMessage() {
+  const input = $('chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  input.style.height = '';
+  $('sendBtn').disabled = true;
+
+  addMessage('user', text);
+  S.msgs.push({ role: 'user', content: text });
+  S.chatTurns++;
+
+  // Update hint after first turn
+  if (S.chatTurns >= 1) {
+    $('finalizeHint').textContent = 'Happy with the direction?';
+    $('finalizeBtn').classList.add('ready');
+  }
+
+  // Show typing indicator
+  $('typingBubble').classList.add('show');
+  $('chatMessages').scrollTop = $('chatMessages').scrollHeight;
+
+  try {
+    const res = await fetch(`${BACKEND}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: S.msgs, sessionContext: S.ctx })
+    });
+    $('typingBubble').classList.remove('show');
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
+    const data = await res.json();
+
+    addMessage('aria', data.message);
+    S.msgs.push({ role: 'assistant', content: data.message });
+
+    if (data.readyToFinalize) {
+      $('finalizeBtn').classList.add('ready');
+      $('finalizeHint').textContent = 'ARIA has enough to finalize — generate your ticket!';
+    }
+  } catch (err) {
+    $('typingBubble').classList.remove('show');
+    addMessage('aria', `⚠️ ${err.message || 'Something went wrong. Please try again.'}`);
+  } finally {
+    $('sendBtn').disabled = false;
+    input.focus();
+  }
+}
+
+function handleChatKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+function autoGrow(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+}
+
+// ── Finalize ──────────────────────────────────────────────────────────────────
+async function finalizeTicket() {
+  if (S.msgs.length < 2) return; // need at least opener
+
+  $('finalizeBtn').disabled = true;
+  setStep(4);
+  showView('finalizing');
+
+  // Animate finalize steps
+  let fi = 1;
+  const fiv = setInterval(() => {
+    ['fin1','fin2','fin3'].forEach((id,idx) => {
+      const el = $(id);
+      if (!el) return;
+      el.className = 'proc-step' + (idx+1 < fi ? ' done' : idx+1 === fi ? ' active' : '');
+    });
+    fi++;
+    if (fi > 4) clearInterval(fiv);
+  }, 700);
+
+  try {
+    const res = await fetch(`${BACKEND}/api/finalize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: S.msgs, sessionContext: S.ctx })
+    });
+    clearInterval(fiv);
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
+    const data = await res.json();
+    S.ticketId = data.ticketId;
+    S.ticket   = data.ticket;
+
+    showView('ticket');
+    renderTicket(data.ticket, data.ticketId, false, null);
+  } catch (err) {
+    clearInterval(fiv);
+    setStep(3);
+    showView('chat');
+    $('finalizeBtn').disabled = false;
+    addMessage('aria', `⚠️ Could not generate ticket: ${err.message}. Please try again.`);
+  }
+}
+
+// ── Render ticket ─────────────────────────────────────────────────────────────
+function renderTicket(r, ticketId, isEmail, emailData) {
+  const cx = { Low:'b-low', Medium:'b-medium', High:'b-high' };
+  $('ticketIdLabel').textContent = ticketId;
+  $('ticketBadges').innerHTML = `
+    <span class="badge b-cat">📊 ${r.category}</span>
+    <span class="badge ${cx[r.complexity]||'b-medium'}">⚡ ${r.complexity} Complexity</span>
+    <span class="badge b-route">→ ${r.routed_to}</span>
+    <span class="badge b-effort">⏱ ${r.effort_estimate}</span>`;
+
+  $('classPanel').innerHTML = `<strong>${r.category}</strong><br><span style="color:var(--sub);font-size:.82rem;font-style:italic">${r.rationale}</span>`;
+  $('routePanel').innerHTML = `<strong>${r.routed_to}</strong><br><span style="color:var(--sub);font-size:.82rem">Est. effort: ${r.effort_estimate}</span>`;
+  $('scopePanel').textContent = r.scoping_brief;
+
+  const t = r.ticket;
+  $('ticketMeta').textContent = `Ticket: ${ticketId} · ${new Date().toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'})}`;
+  $('ticketMono').textContent =
+`TITLE:             ${t.title}
+
+OBJECTIVE:         ${t.objective}
+
+DATA SOURCES:      ${t.data_sources}
+
+EXPECTED OUTPUT:   ${t.expected_output}
+
+SUCCESS CRITERIA:  ${t.success_criteria}
+
+DEPENDENCIES:      ${t.dependencies}
+
+ESTIMATED EFFORT:  ${t.estimated_effort}`;
+
+  const requester = isEmail ? (emailData?.from || 'requester') : S.requesterName;
+  const confirmHtml = `<span class="k">To:</span> ${esc(requester)}<br><span class="k">Subject:</span> ✅ Your analytics request — ${ticketId}<br><span class="k">Ticket:</span> ${ticketId}<br><span class="k">Category:</span> ${r.category}<br><span class="k">Assigned to:</span> ${r.routed_to}<br><span class="k">Effort:</span> ${r.effort_estimate}<br><br>Our team will be in touch within 24-48 hours.`;
+
+  if (isEmail) {
+    $('autoSection').style.display = '';
+    $('manualConfirm').style.display = 'none';
+    $('teamsOut').innerHTML  = `<span class="k">Channel:</span> #analytics-requests<br><span class="k">Ticket:</span> ${ticketId}<br><span class="k">Category:</span> ${r.category}<br><span class="k">Complexity:</span> ${r.complexity}<br><span class="k">Routed to:</span> ${r.routed_to}<br><span class="k">Effort:</span> ${r.effort_estimate}`;
+    $('analystOut').innerHTML = `<span class="k">To:</span> ${r.routed_to.toLowerCase().replace(/ /g,'.')}@crs.org<br><span class="k">Subject:</span> [ARIA] New request — ${ticketId}<br><span class="k">Brief:</span> ${esc(r.scoping_brief.slice(0,80))}...`;
+    $('spOut').innerHTML      = `<span class="k">File:</span> ARIA_Request_Log.xlsx<br><span class="k">Row:</span> ${new Date().toISOString().slice(0,16).replace('T',' ')}<br><span class="k">Status:</span> Open<br><span class="k">Ticket:</span> ${ticketId}`;
+    $('requesterOut').innerHTML = confirmHtml;
+  } else {
+    $('autoSection').style.display = 'none';
+    $('manualConfirm').style.display = '';
+    $('manualRequesterOut').innerHTML = confirmHtml;
+  }
+}
+
+// ── Reset ─────────────────────────────────────────────────────────────────────
+function resetAll() {
+  S = { mode: S.mode, phase:'intake', ctx:null, qt:null, msgs:[], chatTurns:0, ticketId:null, ticket:null, requesterName:'' };
+  setStep(1);
+  showView('intake');
+  $('manualSubmitBtn').disabled = false;
+  $('emailSubmitBtn').disabled = false;
+  $('finalizeBtn').disabled = false;
+  $('finalizeBtn').classList.remove('ready');
+  $('finalizeHint').textContent = 'Answer ARIA\'s questions, then finalize when ready.';
+  $('chatMessages').innerHTML = '';
+  $('chatInput').value = '';
+  $('chatInput').style.height = '';
+  resetPipe();
+  hideErr('manualErr'); hideErr('emailErr');
+  window.scrollTo(0,0);
+}
+
+// ── Copy ──────────────────────────────────────────────────────────────────────
+function copyTicket() {
+  navigator.clipboard.writeText($('ticketMono').textContent)
+    .then(() => flashCopy('ticketMono'));
+}
+function copyBrief() {
+  navigator.clipboard.writeText($('scopePanel').textContent)
+    .then(() => flashCopy('scopePanel'));
+}
+function flashCopy(id) {
+  const el = $(id);
+  el.style.outline = '2px solid var(--accent)';
+  setTimeout(() => el.style.outline = '', 800);
+}
+
+// ── Utils ─────────────────────────────────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function esc(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+function renderMd(text) {
+  return esc(text)
+    .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/\n\n/g,'</p><p style="margin-top:.5rem">')
+    .replace(/\n/g,'<br>');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ARIA v2 — Analytics Request Intelligence Agent</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=Lora:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1e2d45;
+    --accent: #00c2a8;
+    --accent2: #f97316;
+    --accent3: #818cf8;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Lora', serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background-image: linear-gradient(rgba(0,194,168,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0,194,168,0.04) 1px, transparent 1px);
+    background-size: 40px 40px; pointer-events: none; z-index: 0;
+  }
+  .container { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+  header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    margin-bottom: 2rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--border);
+    animation: fadeDown 0.5s ease both;
+  }
+  .logo { font-family: 'Syne', sans-serif; font-size: 2rem; font-weight: 800; color: var(--accent); letter-spacing: -0.02em; line-height: 1; }
+  .logo span { color: var(--text); }
+  .tagline { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; margin-top: 0.2rem; }
+  .version-badge { font-family: 'DM Mono', monospace; font-size: 0.6rem; color: var(--accent2); background: rgba(249,115,22,0.08); border: 1px solid rgba(249,115,22,0.2); padding: 0.2rem 0.6rem; border-radius: 2px; letter-spacing: 0.1em; margin-top: 0.3rem; display: inline-block; }
+  .org-badge { font-family: 'DM Mono', monospace; font-size: 0.62rem; color: var(--accent); background: rgba(0,194,168,0.08); border: 1px solid rgba(0,194,168,0.2); padding: 0.3rem 0.7rem; border-radius: 2px; letter-spacing: 0.1em; text-transform: uppercase; }
+
+  /* Mode switcher */
+  .mode-bar {
+    display: flex; gap: 0; margin-bottom: 2rem; background: var(--surface); border: 1px solid var(--border); border-radius: 5px; padding: 4px; animation: fadeUp 0.5s 0.1s ease both;
+  }
+  .mode-btn {
+    flex: 1; font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.07em; text-transform: uppercase;
+    padding: 0.6rem 1rem; border: none; border-radius: 3px; cursor: pointer; transition: all 0.2s; color: var(--muted); background: transparent;
+  }
+  .mode-btn.active { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .mode-btn:hover:not(.active) { color: var(--text); }
+
+  /* API Key */
+  .api-section { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent3); border-radius: 4px; padding: 0.9rem 1.25rem; margin-bottom: 1.5rem; animation: fadeUp 0.5s 0.15s ease both; }
+  .api-section label { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--accent3); letter-spacing: 0.1em; text-transform: uppercase; display: block; margin-bottom: 0.45rem; }
+  .api-row { display: flex; gap: 0.75rem; align-items: center; }
+  .api-input { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.78rem; padding: 0.55rem 0.9rem; border-radius: 3px; outline: none; transition: border-color 0.2s; }
+  .api-input:focus { border-color: var(--accent3); }
+  .api-status { font-family: 'DM Mono', monospace; font-size: 0.62rem; padding: 0.35rem 0.7rem; border-radius: 2px; white-space: nowrap; }
+  .api-status.connected { background: rgba(16,185,129,0.1); color: var(--success); border: 1px solid rgba(16,185,129,0.2); }
+  .api-status.disconnected { background: rgba(100,116,139,0.1); color: var(--muted); border: 1px solid var(--border); }
+
+  /* Pipeline banner (automation mode) */
+  .pipeline-banner {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 5px;
+    padding: 1rem 1.25rem; margin-bottom: 1.5rem; animation: fadeUp 0.5s 0.2s ease both;
+  }
+  .pipeline-steps { display: flex; align-items: center; gap: 0; flex-wrap: wrap; }
+  .pipe-step { display: flex; align-items: center; gap: 0.4rem; font-family: 'DM Mono', monospace; font-size: 0.62rem; color: var(--muted); letter-spacing: 0.05em; transition: color 0.3s; padding: 0.3rem 0; }
+  .pipe-step.active { color: var(--accent); }
+  .pipe-step.done { color: var(--success); }
+  .pipe-dot { width: 8px; height: 8px; border-radius: 50%; border: 1px solid currentColor; transition: all 0.3s; flex-shrink: 0; }
+  .pipe-step.active .pipe-dot { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .pipe-step.done .pipe-dot { background: var(--success); border-color: var(--success); }
+  .pipe-arrow { color: var(--border); margin: 0 0.4rem; font-size: 0.7rem; }
+
+  /* Card */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 1.75rem; margin-bottom: 1.25rem; animation: fadeUp 0.5s 0.2s ease both; }
+  .card-title { font-family: 'Syne', sans-serif; font-size: 0.95rem; font-weight: 700; margin-bottom: 0.25rem; }
+  .card-sub { font-size: 0.8rem; color: var(--muted); margin-bottom: 1.4rem; font-style: italic; }
+
+  /* Email simulation */
+  .email-sim { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; margin-bottom: 1.5rem; }
+  .email-header-bar { background: var(--surface2); padding: 0.6rem 1rem; display: flex; align-items: center; gap: 0.75rem; border-bottom: 1px solid var(--border); }
+  .email-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .email-title { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--muted); letter-spacing: 0.08em; flex: 1; text-align: center; }
+  .email-fields { padding: 1rem; }
+  .email-field { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.4rem 0; border-bottom: 1px solid var(--border); }
+  .email-field:last-child { border-bottom: none; }
+  .email-field-label { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--muted); letter-spacing: 0.08em; min-width: 55px; padding-top: 0.1rem; text-transform: uppercase; }
+  .email-field input, .email-field textarea { background: transparent; border: none; color: var(--text); font-family: 'Lora', serif; font-size: 0.85rem; outline: none; width: 100%; resize: none; }
+  .email-field textarea { min-height: 80px; line-height: 1.6; }
+
+  /* Manual form */
+  .field { margin-bottom: 1.1rem; }
+  .field label { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; display: block; margin-bottom: 0.4rem; }
+  .req { color: var(--accent2); }
+  textarea, select, input[type="text"] { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); font-family: 'Lora', serif; font-size: 0.88rem; padding: 0.7rem 0.9rem; border-radius: 3px; outline: none; transition: border-color 0.2s; resize: vertical; }
+  textarea { min-height: 100px; line-height: 1.6; }
+  textarea:focus, select:focus, input:focus { border-color: var(--accent); }
+  select option { background: var(--surface); }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+  /* Buttons */
+  .btn-primary { background: var(--accent); color: var(--bg); font-family: 'Syne', sans-serif; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 0.85rem 2rem; border: none; border-radius: 3px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 0.6rem; width: 100%; justify-content: center; }
+  .btn-primary:hover { background: #00d4b8; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(0,194,168,0.25); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-secondary { background: transparent; color: var(--muted); font-family: 'DM Mono', monospace; font-size: 0.72rem; letter-spacing: 0.05em; padding: 0.55rem 1.1rem; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; transition: all 0.2s; }
+  .btn-secondary:hover { border-color: var(--muted); color: var(--text); }
+  .btn-copy { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--accent); background: rgba(0,194,168,0.07); border: 1px solid rgba(0,194,168,0.2); padding: 0.5rem 1rem; border-radius: 3px; cursor: pointer; transition: all 0.2s; letter-spacing: 0.05em; }
+  .btn-copy:hover { background: rgba(0,194,168,0.15); }
+
+  /* Processing */
+  .processing { display: none; text-align: center; padding: 2.5rem 2rem; }
+  .processing.show { display: flex; flex-direction: column; align-items: center; gap: 1.25rem; }
+  .pulse-ring { width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--accent); position: relative; animation: pulseRing 1.5s ease infinite; }
+  .pulse-ring::before { content: ''; position: absolute; inset: 6px; border-radius: 50%; background: var(--accent); animation: pulseCore 1.5s ease infinite; }
+  .proc-steps { display: flex; flex-direction: column; gap: 0.4rem; width: 100%; max-width: 340px; }
+  .proc-step { font-family: 'DM Mono', monospace; font-size: 0.7rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; transition: color 0.3s; }
+  .proc-step.active { color: var(--accent); }
+  .proc-step.done { color: var(--success); }
+  .proc-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+  /* Results */
+  .results { display: none; }
+  .results.show { display: block; animation: fadeUp 0.5s ease both; }
+  .result-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+  .result-title { font-family: 'Syne', sans-serif; font-size: 1.2rem; font-weight: 800; letter-spacing: -0.02em; }
+  .result-title span { color: var(--accent); }
+
+  .badges { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem; }
+  .badge { font-family: 'DM Mono', monospace; font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.3rem 0.7rem; border-radius: 2px; border: 1px solid; }
+  .badge-type { color: var(--accent3); border-color: rgba(129,140,248,0.3); background: rgba(129,140,248,0.07); }
+  .badge-low { color: var(--success); border-color: rgba(16,185,129,0.3); background: rgba(16,185,129,0.07); }
+  .badge-medium { color: var(--warning); border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.07); }
+  .badge-high { color: var(--danger); border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.07); }
+  .badge-route { color: var(--accent2); border-color: rgba(249,115,22,0.3); background: rgba(249,115,22,0.07); }
+  .badge-effort { color: var(--muted); border-color: var(--border); background: rgba(255,255,255,0.02); }
+
+  .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 0.85rem; }
+  .result-panel { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 1.1rem; }
+  .result-panel.full { grid-column: 1 / -1; }
+  .panel-label { font-family: 'DM Mono', monospace; font-size: 0.62rem; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.65rem; display: flex; align-items: center; gap: 0.5rem; }
+  .panel-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .panel-content { font-size: 0.86rem; line-height: 1.7; color: var(--text); }
+
+  .q-list { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+  .q-list li { font-size: 0.86rem; line-height: 1.6; display: flex; gap: 0.6rem; align-items: flex-start; }
+  .q-num { font-family: 'DM Mono', monospace; font-size: 0.6rem; color: var(--accent); background: rgba(0,194,168,0.1); border: 1px solid rgba(0,194,168,0.2); padding: 0.1rem 0.35rem; border-radius: 2px; flex-shrink: 0; margin-top: 0.25rem; }
+
+  .ticket { background: var(--bg); border: 1px solid var(--border); border-top: 3px solid var(--accent); border-radius: 4px; padding: 1.25rem; font-family: 'DM Mono', monospace; font-size: 0.75rem; line-height: 1.9; white-space: pre-wrap; word-break: break-word; }
+  .ticket-meta { font-size: 0.62rem; color: var(--muted); margin-bottom: 0.75rem; letter-spacing: 0.08em; }
+
+  /* Automation outputs simulation */
+  .auto-outputs { display: none; }
+  .auto-outputs.show { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 1rem; animation: fadeUp 0.5s ease both; }
+  .auto-output-card { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 1rem; }
+  .auto-output-label { font-family: 'DM Mono', monospace; font-size: 0.6rem; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.4rem; }
+  .sent-badge { font-size: 0.55rem; color: var(--success); background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.2); padding: 0.1rem 0.4rem; border-radius: 2px; margin-left: auto; }
+  .auto-output-body { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--text); line-height: 1.7; }
+  .auto-output-body .field-k { color: var(--muted); }
+
+  .result-actions { display: flex; gap: 0.75rem; margin-top: 1.25rem; flex-wrap: wrap; }
+  .error-box { display: none; background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.25); border-radius: 4px; padding: 0.85rem 1.1rem; font-family: 'DM Mono', monospace; font-size: 0.75rem; color: var(--danger); margin-bottom: 1rem; }
+  .error-box.show { display: block; }
+
+  @keyframes fadeDown { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes pulseRing { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.08); opacity: 0.7; } }
+  @keyframes pulseCore { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  @media (max-width: 640px) {
+    .field-row, .result-grid, .auto-outputs.show { grid-template-columns: 1fr; }
+    .result-panel.full { grid-column: 1; }
+    header { flex-direction: column; gap: 0.75rem; }
+    .pipeline-steps { gap: 0.25rem; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div>
+      <div class="logo">ARIA<span>.</span></div>
+      <div class="tagline">Analytics Request Intelligence Agent</div>
+      <div class="version-badge">v2.0 · Automated Pipeline</div>
+    </div>
+    <div class="org-badge">CRS · Enterprise Analytics</div>
+  </header>
+
+  <!-- Backend status -->
+  <div class="api-section">
+    <label>Backend Connection</label>
+    <div class="api-row">
+      <div style="font-family:'DM Mono',monospace;font-size:0.75rem;color:var(--muted);flex:1">
+        API secured via backend proxy · <span style="color:var(--text)">http://localhost:3000</span>
+      </div>
+      <div class="api-status" id="apiStatus">● Checking...</div>
+    </div>
+  </div>
+
+  <!-- Mode switcher -->
+  <div class="mode-bar">
+    <button class="mode-btn active" id="modeManual" onclick="switchMode('manual')">📋 Manual Portal</button>
+    <button class="mode-btn" id="modeEmail" onclick="switchMode('email')">📧 Email Simulation (Automated)</button>
+  </div>
+
+  <!-- Pipeline tracker (email mode) -->
+  <div class="pipeline-banner" id="pipelineBanner" style="display:none">
+    <div style="font-family:'DM Mono',monospace;font-size:0.6rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.6rem;">Automation Pipeline Status</div>
+    <div class="pipeline-steps">
+      <div class="pipe-step" id="pipe1"><div class="pipe-dot"></div>Email received</div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step" id="pipe2"><div class="pipe-dot"></div>Flow triggered</div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step" id="pipe3"><div class="pipe-dot"></div>ARIA processing</div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step" id="pipe4"><div class="pipe-dot"></div>Teams notified</div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step" id="pipe5"><div class="pipe-dot"></div>Email dispatched</div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step" id="pipe6"><div class="pipe-dot"></div>Log updated</div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step" id="pipe7"><div class="pipe-dot"></div>Requester notified</div>
+    </div>
+  </div>
+
+  <!-- MANUAL FORM -->
+  <div class="card" id="manualForm">
+    <div class="card-title">Submit an Analytics Request</div>
+    <div class="card-sub">Describe your need in plain language — ARIA triages, routes, and generates your project ticket.</div>
+    <div class="field"><label>Your Name <span class="req">*</span></label><input type="text" id="mName" placeholder="e.g. Sarah Mensah"/></div>
+    <div class="field-row">
+      <div class="field"><label>Department / Program <span class="req">*</span></label><input type="text" id="mDept" placeholder="e.g. Finance, MEAL, Supply Chain"/></div>
+      <div class="field"><label>Country / Region</label><input type="text" id="mCountry" placeholder="e.g. Ethiopia, Global"/></div>
+    </div>
+    <div class="field"><label>Describe your analytics need <span class="req">*</span></label><textarea id="mDesc" placeholder="e.g. I need a monthly dashboard showing cash transfer volumes by country and beneficiary category from Oracle ERP. We're presenting to donors in 3 weeks..."></textarea></div>
+    <div class="field-row">
+      <div class="field"><label>Urgency</label>
+        <select id="mUrgency"><option value="standard">Standard (within sprint)</option><option value="high">High (this week)</option><option value="critical">Critical (today/tomorrow)</option><option value="low">Low (next quarter)</option></select>
+      </div>
+      <div class="field"><label>Data Domain</label>
+        <select id="mDomain"><option value="unknown">Not sure</option><option value="finance">Finance / Accounting</option><option value="supply_chain">Supply Chain</option><option value="hr">People & Culture</option><option value="programs">Programs / MEAL</option><option value="beneficiaries">Beneficiary Data</option><option value="cross">Cross-functional</option></select>
+      </div>
+    </div>
+    <div class="error-box" id="manualError"></div>
+    <button class="btn-primary" onclick="submitManual()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      Activate ARIA Agent
+    </button>
+  </div>
+
+  <!-- EMAIL SIMULATION FORM -->
+  <div id="emailForm" style="display:none">
+    <div class="card">
+      <div class="card-title">Simulate Incoming Email to analytics-requests@crs.org</div>
+      <div class="card-sub">This simulates what Power Automate receives when a stakeholder sends an email — zero human intervention from here.</div>
+      <div class="email-sim">
+        <div class="email-header-bar">
+          <div class="email-dot" style="background:#ef4444"></div>
+          <div class="email-dot" style="background:#f59e0b"></div>
+          <div class="email-dot" style="background:#10b981"></div>
+          <div class="email-title">New Message — analytics-requests@crs.org</div>
+        </div>
+        <div class="email-fields">
+          <div class="email-field"><div class="email-field-label">From</div><input type="text" id="eFrom" placeholder="sarah.mensah@crs.org"/></div>
+          <div class="email-field"><div class="email-field-label">To</div><input type="text" value="analytics-requests@crs.org" readonly style="color:var(--muted)"/></div>
+          <div class="email-field"><div class="email-field-label">Subject</div><input type="text" id="eSubject" placeholder="Analytics request — Beneficiary reach dashboard"/></div>
+          <div class="email-field"><div class="email-field-label">Body</div><textarea id="eBody" placeholder="Hi Analytics team,&#10;&#10;I need a dashboard showing our beneficiary reach by country and program type for the Q2 donor report. The data should come from Oracle ERP and refresh monthly. We're presenting to USAID in 3 weeks.&#10;&#10;Thanks,&#10;Sarah"></textarea></div>
+        </div>
+      </div>
+      <div class="error-box" id="emailError"></div>
+      <button class="btn-primary" onclick="submitEmail()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+        Send Email → Trigger Automation Pipeline
+      </button>
+    </div>
+  </div>
+
+  <!-- Processing -->
+  <div class="card processing" id="processingCard">
+    <div class="pulse-ring"></div>
+    <div style="font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;color:var(--accent)">ARIA Agent Processing</div>
+    <div class="proc-steps">
+      <div class="proc-step" id="proc1"><div class="proc-dot"></div>Parsing request content...</div>
+      <div class="proc-step" id="proc2"><div class="proc-dot"></div>Classifying request type & complexity...</div>
+      <div class="proc-step" id="proc3"><div class="proc-dot"></div>Routing to optimal analyst profile...</div>
+      <div class="proc-step" id="proc4"><div class="proc-dot"></div>Generating scoping brief & questions...</div>
+      <div class="proc-step" id="proc5"><div class="proc-dot"></div>Compiling structured ticket...</div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="results" id="resultsCard">
+    <div class="result-header">
+      <div class="result-title">Triage <span>Complete</span></div>
+      <button class="btn-secondary" onclick="resetAll()">← New Request</button>
+    </div>
+
+    <div class="badges" id="badgesRow"></div>
+
+    <div class="result-grid">
+      <div class="result-panel"><div class="panel-label">Classification</div><div class="panel-content" id="classPanel"></div></div>
+      <div class="result-panel"><div class="panel-label">Routing Decision</div><div class="panel-content" id="routePanel"></div></div>
+      <div class="result-panel full"><div class="panel-label">Scoping Brief</div><div class="panel-content" id="scopePanel"></div></div>
+      <div class="result-panel full"><div class="panel-label">Clarifying Questions for Requester</div><ul class="q-list" id="questPanel"></ul></div>
+      <div class="result-panel full">
+        <div class="panel-label">Generated Ticket</div>
+        <div class="ticket-meta" id="ticketMeta"></div>
+        <div class="ticket" id="ticketPanel"></div>
+      </div>
+    </div>
+
+    <!-- Automation outputs (email mode only) -->
+    <div id="autoOutputsLabel" style="display:none;font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-top:1.25rem;margin-bottom:0.5rem;">⚡ Automation outputs dispatched simultaneously</div>
+    <div class="auto-outputs" id="autoOutputs">
+      <div class="auto-output-card">
+        <div class="auto-output-label">💬 Teams Channel <span class="sent-badge">✓ Sent</span></div>
+        <div class="auto-output-body" id="teamsOut"></div>
+      </div>
+      <div class="auto-output-card">
+        <div class="auto-output-label">📨 Analyst Email <span class="sent-badge">✓ Sent</span></div>
+        <div class="auto-output-body" id="emailOut"></div>
+      </div>
+      <div class="auto-output-card">
+        <div class="auto-output-label">📊 SharePoint Log <span class="sent-badge">✓ Logged</span></div>
+        <div class="auto-output-body" id="spOut"></div>
+      </div>
+      <div class="auto-output-card" style="border-left:3px solid var(--accent);grid-column:1/-1">
+        <div class="auto-output-label">✅ Requester Confirmation <span class="sent-badge">✓ Sent</span></div>
+        <div class="auto-output-body" id="requesterOut"></div>
+      </div>
+    </div>
+
+    <!-- Requester confirmation (manual mode) -->
+    <div id="manualConfirmCard" style="display:none;margin-top:1rem;animation:fadeUp 0.5s ease both">
+      <div style="font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.5rem;">✅ Confirmation sent to requester</div>
+      <div class="auto-output-card" style="border-left:3px solid var(--accent)">
+        <div class="auto-output-label">📨 Requester Confirmation Email <span class="sent-badge">✓ Sent</span></div>
+        <div class="auto-output-body" id="manualRequesterOut"></div>
+      </div>
+    </div>
+
+    <div class="result-actions">
+      <button class="btn-copy" onclick="copyTicket()">⊕ Copy Ticket</button>
+      <button class="btn-copy" onclick="copyBrief()">⊕ Copy Scoping Brief</button>
+      <button class="btn-secondary" onclick="resetAll()">New Request</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const BACKEND_URL = 'http://localhost:3000';
+  let currentMode = 'manual';
+  let lastResult = {};
+  let lastTicketId = '';
+  let backendOnline = false;
+
+  async function checkBackend() {
+    const s = document.getElementById('apiStatus');
+    try {
+      const res = await fetch(`${BACKEND_URL}/health`, { signal: AbortSignal.timeout(3000) });
+      if (res.ok) {
+        backendOnline = true;
+        s.textContent = '● Backend connected';
+        s.className = 'api-status connected';
+      } else { throw new Error(); }
+    } catch {
+      backendOnline = false;
+      s.textContent = '● Backend offline — run: node server.js';
+      s.className = 'api-status disconnected';
+    }
+  }
+  checkBackend();
+
+  function switchMode(mode) {
+    currentMode = mode;
+    document.getElementById('modeManual').className = 'mode-btn' + (mode === 'manual' ? ' active' : '');
+    document.getElementById('modeEmail').className = 'mode-btn' + (mode === 'email' ? ' active' : '');
+    document.getElementById('manualForm').style.display = mode === 'manual' ? '' : 'none';
+    document.getElementById('emailForm').style.display = mode === 'email' ? '' : 'none';
+    document.getElementById('pipelineBanner').style.display = mode === 'email' ? '' : 'none';
+    resetPipeline();
+  }
+
+  function setPipe(n) {
+    for (let i = 1; i <= 7; i++) {
+      const el = document.getElementById('pipe' + i);
+      if (!el) continue;
+      if (i < n) el.className = 'pipe-step done';
+      else if (i === n) el.className = 'pipe-step active';
+      else el.className = 'pipe-step';
+    }
+  }
+
+  function resetPipeline() {
+    for (let i = 1; i <= 7; i++) { const el = document.getElementById('pipe' + i); if (el) el.className = 'pipe-step'; }
+  }
+
+  function setProc(n) {
+    for (let i = 1; i <= 5; i++) {
+      const el = document.getElementById('proc' + i);
+      if (i < n) el.className = 'proc-step done';
+      else if (i === n) el.className = 'proc-step active';
+      else el.className = 'proc-step';
+    }
+  }
+
+  function showErr(id, msg) { const el = document.getElementById(id); el.textContent = msg; el.className = 'error-box show'; }
+  function hideErr(id) { document.getElementById(id).className = 'error-box'; }
+
+  async function submitManual() {
+    hideErr('manualError');
+    const apiKey = document.getElementById('apiKey').value.trim();
+    const name = document.getElementById('mName').value.trim();
+    const dept = document.getElementById('mDept').value.trim();
+    const country = document.getElementById('mCountry').value.trim();
+    const desc = document.getElementById('mDesc').value.trim();
+    const urgency = document.getElementById('mUrgency').value;
+    const domain = document.getElementById('mDomain').value;
+
+    if (!apiKey || !apiKey.startsWith('sk-ant-')) { showErr('manualError', 'Please enter a valid Anthropic API key.'); return; }
+    if (!name) { showErr('manualError', 'Please enter your name.'); return; }
+    if (!dept) { showErr('manualError', 'Please enter your department.'); return; }
+    if (!desc || desc.length < 15) { showErr('manualError', 'Please describe your analytics need in more detail.'); return; }
+
+    const urgencyMap = { standard: 'Standard', high: 'High (this week)', critical: 'Critical (today)', low: 'Low (next quarter)' };
+    const domainMap = { unknown: 'Not specified', finance: 'Finance', supply_chain: 'Supply Chain', hr: 'People & Culture', programs: 'Programs/MEAL', beneficiaries: 'Beneficiary Data', cross: 'Cross-functional' };
+
+    const content = `New analytics request from ${name} (${dept}${country ? ', ' + country : ''}):\n\n"${desc}"\n\nUrgency: ${urgencyMap[urgency]}\nData Domain: ${domainMap[domain]}`;
+    await runARIA(apiKey, content, name, dept, false);
+  }
+
+  async function submitEmail() {
+    hideErr('emailError');
+    const apiKey = document.getElementById('apiKey').value.trim();
+    const from = document.getElementById('eFrom').value.trim();
+    const subject = document.getElementById('eSubject').value.trim();
+    const body = document.getElementById('eBody').value.trim();
+
+    if (!apiKey || !apiKey.startsWith('sk-ant-')) { showErr('emailError', 'Please enter a valid Anthropic API key.'); return; }
+    if (!from) { showErr('emailError', 'Please enter a sender email address.'); return; }
+    if (!body || body.length < 15) { showErr('emailError', 'Please write an email body.'); return; }
+
+    const content = `Incoming email to analytics-requests@crs.org\nFrom: ${from}\nSubject: ${subject || '(No subject)'}\n\n${body}`;
+    setPipe(1);
+    await new Promise(r => setTimeout(r, 500));
+    setPipe(2);
+    await runARIA(apiKey, content, from, 'Email Submission', true);
+  }
+
+  function updateApiStatus() {} // legacy stub — no longer used
+
+  async function submitManual() {
+    hideErr('manualError');
+    const name = document.getElementById('mName').value.trim();
+    const dept = document.getElementById('mDept').value.trim();
+    const country = document.getElementById('mCountry').value.trim();
+    const desc = document.getElementById('mDesc').value.trim();
+    const urgency = document.getElementById('mUrgency').value;
+    const domain = document.getElementById('mDomain').value;
+
+    if (!name) { showErr('manualError', 'Please enter your name.'); return; }
+    if (!dept) { showErr('manualError', 'Please enter your department.'); return; }
+    if (!desc || desc.length < 15) { showErr('manualError', 'Please describe your analytics need in more detail.'); return; }
+
+    const urgencyMap = { standard: 'Standard', high: 'High (this week)', critical: 'Critical (today)', low: 'Low (next quarter)' };
+    const domainMap = { unknown: 'Not specified', finance: 'Finance', supply_chain: 'Supply Chain', hr: 'People & Culture', programs: 'Programs/MEAL', beneficiaries: 'Beneficiary Data', cross: 'Cross-functional' };
+
+    await runARIA(
+      { requester: name, department: dept, country, description: desc, urgency: urgencyMap[urgency], dataDomain: domainMap[domain] },
+      '/api/triage', name, dept, false
+    );
+  }
+
+  async function submitEmail() {
+    hideErr('emailError');
+    const from = document.getElementById('eFrom').value.trim();
+    const subject = document.getElementById('eSubject').value.trim();
+    const body = document.getElementById('eBody').value.trim();
+
+    if (!from) { showErr('emailError', 'Please enter a sender email address.'); return; }
+    if (!body || body.length < 15) { showErr('emailError', 'Please write an email body.'); return; }
+
+    setPipe(1);
+    await new Promise(r => setTimeout(r, 500));
+    setPipe(2);
+    await runARIA({ from, subject, body }, '/api/triage/email', from, 'Email Submission', true);
+  }
+
+  async function runARIA(payload, endpoint, requester, dept, isEmail) {
+    document.getElementById('manualForm').style.display = 'none';
+    document.getElementById('emailForm').style.display = 'none';
+    document.getElementById('resultsCard').className = 'results';
+    document.getElementById('processingCard').className = 'card processing show';
+
+    if (isEmail) setPipe(3);
+
+    let step = 1;
+    const interval = setInterval(() => { if (step <= 5) { setProc(step); step++; } }, 650);
+
+    try {
+      // ← Calls YOUR backend, not Anthropic directly. API key is never in the browser.
+      const res = await fetch(`${BACKEND_URL}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      clearInterval(interval);
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Backend error'); }
+
+      const data = await res.json();
+      const result = data.triage;
+      const ticketId = data.ticketId;
+
+      lastResult = result;
+      lastTicketId = ticketId;
+
+      await new Promise(r => setTimeout(r, 300));
+
+      if (isEmail) {
+        setPipe(4);
+        await new Promise(r => setTimeout(r, 400));
+        setPipe(5);
+        await new Promise(r => setTimeout(r, 400));
+        setPipe(6);
+        await new Promise(r => setTimeout(r, 400));
+        setPipe(7);
+      }
+
+      document.getElementById('processingCard').className = 'card processing';
+      renderResults(result, requester, dept, ticketId, isEmail);
+
+    } catch (err) {
+      clearInterval(interval);
+      document.getElementById('processingCard').className = 'card processing';
+      document.getElementById('manualForm').style.display = currentMode === 'manual' ? '' : 'none';
+      document.getElementById('emailForm').style.display = currentMode === 'email' ? '' : 'none';
+      showErr(currentMode === 'manual' ? 'manualError' : 'emailError', 'Error: ' + (err.message || 'Could not reach backend server. Is server.js running?'));
+    }
+  }
+
+  function renderResults(r, requester, dept, ticketId, isEmail) {
+    const cx = { Low: 'badge-low', Medium: 'badge-medium', High: 'badge-high' };
+    document.getElementById('badgesRow').innerHTML = `
+      <div class="badge badge-type">📊 ${r.category}</div>
+      <div class="badge ${cx[r.complexity] || 'badge-medium'}">⚡ ${r.complexity} Complexity</div>
+      <div class="badge badge-route">→ ${r.routed_to}</div>
+      <div class="badge badge-effort">⏱ ${r.effort_estimate}</div>`;
+
+    document.getElementById('classPanel').innerHTML = `<p><strong>${r.category}</strong></p><p style="color:var(--muted);font-size:0.82rem;font-style:italic;margin-top:0.4rem">${r.rationale}</p>`;
+    document.getElementById('routePanel').innerHTML = `<p><strong>${r.routed_to}</strong></p><p style="color:var(--muted);font-size:0.82rem;margin-top:0.4rem">Effort: ${r.effort_estimate}</p>`;
+    document.getElementById('scopePanel').innerHTML = `<p>${r.scoping_brief}</p>`;
+
+    const ql = document.getElementById('questPanel');
+    ql.innerHTML = '';
+    (r.clarifying_questions || []).forEach((q, i) => { ql.innerHTML += `<li><span class="q-num">Q${i+1}</span><span>${q}</span></li>`; });
+
+    document.getElementById('ticketMeta').textContent = `Ticket: ${ticketId} · Requester: ${requester} · ${dept}`;
+    const t = r.ticket;
+    document.getElementById('ticketPanel').textContent =
+`TITLE:            ${t.title}
+
+OBJECTIVE:        ${t.objective}
+
+DATA SOURCES:     ${t.data_sources}
+
+EXPECTED OUTPUT:  ${t.expected_output}
+
+SUCCESS CRITERIA: ${t.success_criteria}
+
+DEPENDENCIES:     ${t.dependencies}
+
+ESTIMATED EFFORT: ${t.estimated_effort}`;
+
+    const confirmationBody = `<span class="field-k">To:</span> ${requester}<br><span class="field-k">Subject:</span> ✅ Your request is received — ${ticketId}<br><span class="field-k">Ticket ID:</span> ${ticketId}<br><span class="field-k">Category:</span> ${r.category}<br><span class="field-k">Assigned to:</span> ${r.routed_to}<br><span class="field-k">Est. effort:</span> ${r.effort_estimate}<br><span class="field-k">Questions for you:</span><br>&nbsp;1. ${(r.clarifying_questions||[])[0]||''}<br>&nbsp;2. ${(r.clarifying_questions||[])[1]||''}<br>&nbsp;3. ${(r.clarifying_questions||[])[2]||''}`;
+
+    if (isEmail) {
+      document.getElementById('autoOutputsLabel').style.display = '';
+      document.getElementById('autoOutputs').className = 'auto-outputs show';
+      document.getElementById('teamsOut').innerHTML = `<span class="field-k">Channel:</span> #analytics-requests<br><span class="field-k">Ticket:</span> ${ticketId}<br><span class="field-k">Category:</span> ${r.category}<br><span class="field-k">Complexity:</span> ${r.complexity}<br><span class="field-k">Routed to:</span> ${r.routed_to}<br><span class="field-k">Effort:</span> ${r.effort_estimate}`;
+      document.getElementById('emailOut').innerHTML = `<span class="field-k">To:</span> ${r.routed_to.toLowerCase().replace(/ /g,'.')}@crs.org<br><span class="field-k">Subject:</span> [ARIA] ${ticketId}<br><span class="field-k">Brief:</span> ${r.scoping_brief.substring(0, 80)}...`;
+      document.getElementById('spOut').innerHTML = `<span class="field-k">File:</span> ARIA_Request_Log.xlsx<br><span class="field-k">Row added:</span> ${new Date().toISOString().slice(0,16).replace('T',' ')}<br><span class="field-k">Status:</span> Open<br><span class="field-k">Ticket:</span> ${ticketId}`;
+      document.getElementById('requesterOut').innerHTML = confirmationBody;
+      document.getElementById('manualConfirmCard').style.display = 'none';
+    } else {
+      document.getElementById('autoOutputsLabel').style.display = 'none';
+      document.getElementById('autoOutputs').className = 'auto-outputs';
+      document.getElementById('manualConfirmCard').style.display = '';
+      document.getElementById('manualRequesterOut').innerHTML = confirmationBody;
+    }
+
+    document.getElementById('resultsCard').className = 'results show';
+    document.getElementById('resultsCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function resetAll() {
+    document.getElementById('manualForm').style.display = currentMode === 'manual' ? '' : 'none';
+    document.getElementById('emailForm').style.display = currentMode === 'email' ? '' : 'none';
+    document.getElementById('resultsCard').className = 'results';
+    document.getElementById('autoOutputs').className = 'auto-outputs';
+    document.getElementById('autoOutputsLabel').style.display = 'none';
+    document.getElementById('manualConfirmCard').style.display = 'none';
+    hideErr('manualError'); hideErr('emailError');
+    resetPipeline();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function copyTicket() { navigator.clipboard.writeText(document.getElementById('ticketPanel').textContent).then(() => alert('Ticket copied!')); }
+  function copyBrief() { navigator.clipboard.writeText(document.getElementById('scopePanel').textContent).then(() => alert('Brief copied!')); }
+</script>
+</body>
+</html>
