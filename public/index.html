@@ -426,9 +426,15 @@ body::before{
           <div class="view-title">Submit an Analytics Request</div>
           <div class="view-sub">Describe your need in plain language — ARIA will triage it, ask a few smart questions, then generate your project ticket.</div>
 
-          <div class="field">
-            <label>Your Name <span class="req">*</span></label>
-            <input type="text" id="mName" placeholder="e.g. Sarah Mensah"/>
+          <div class="field-row">
+            <div class="field">
+              <label>Your Name <span class="req">*</span></label>
+              <input type="text" id="mName" placeholder="e.g. Sarah Mensah"/>
+            </div>
+            <div class="field">
+              <label>Your Email <span class="req">*</span></label>
+              <input type="email" id="mEmail" placeholder="e.g. sarah.mensah@crs.org"/>
+            </div>
           </div>
           <div class="field-row">
             <div class="field">
@@ -770,6 +776,7 @@ function setMode(mode) {
 async function submitManual() {
   hideErr('manualErr');
   const name    = $('mName').value.trim();
+  const email   = $('mEmail').value.trim();
   const dept    = $('mDept').value.trim();
   const country = $('mCountry').value.trim();
   const desc    = $('mDesc').value.trim();
@@ -777,6 +784,7 @@ async function submitManual() {
   const domain  = $('mDomain').value;
 
   if (!name)             return showErr('manualErr', 'Please enter your name.');
+  if (!email)            return showErr('manualErr', 'Please enter your email address.');
   if (!dept)             return showErr('manualErr', 'Please enter your department.');
   if (desc.length < 15)  return showErr('manualErr', 'Please describe your analytics need in more detail.');
 
@@ -790,7 +798,7 @@ async function submitManual() {
     const res = await fetch(`${BACKEND}/api/triage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requester: name, department: dept, country, description: desc, urgency, dataDomain: domain })
+      body: JSON.stringify({ requester: name, requesterEmail: email, department: dept, country, description: desc, urgency, dataDomain: domain })
     });
     clearInterval(iv);
     if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Backend error'); }

@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
+const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
 
@@ -177,6 +178,83 @@ Return ONLY valid JSON with no markdown fences or preamble:
 INITIAL REQUEST CONTEXT:
 ${JSON.stringify(ctx, null, 2)}`;
 
+// ── Email notifications ───────────────────────────────────────────────────────
+// Requires SMTP_USER + SMTP_PASS env vars. Uses Gmail App Password by default.
+// Silently skips if not configured — nothing breaks without it.
+
+const ANALYST_MAP = {
+  'Data Engineer':  () => process.env.NOTIFY_DATA_ENGINEER,
+  'Data Analyst':   () => process.env.NOTIFY_DATA_ANALYST,
+  'Data Scientist': () => process.env.NOTIFY_DATA_SCIENTIST,
+  'Analytics Lead': () => process.env.NOTIFY_ANALYTICS_LEAD
+};
+
+async function sendNotifications(record) {
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return;
+
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+  });
+
+  const from = `ARIA <${process.env.SMTP_USER}>`;
+  const analystEmail = (ANALYST_MAP[record.routed_to] || (() => null))() || process.env.NOTIFY_TEAM;
+  const t = record.ticket;
+  const promises = [];
+
+  if (analystEmail) {
+    promises.push(transporter.sendMail({
+      from, to: analystEmail,
+      subject: `[ARIA] New Request Assigned — ${record.ticketId}`,
+      text:
+`TICKET:      ${record.ticketId}
+REQUESTER:   ${record.requester} — ${record.department}${record.country ? ', ' + record.country : ''}
+CATEGORY:    ${record.category}
+COMPLEXITY:  ${record.complexity}
+EFFORT:      ${record.effort_estimate}
+
+SCOPING BRIEF:
+${record.scoping_brief}
+
+TITLE:       ${t.title}
+OBJECTIVE:   ${t.objective}
+DATA SOURCES: ${t.data_sources}
+OUTPUT:      ${t.expected_output}
+SUCCESS:     ${t.success_criteria}
+DEPS:        ${t.dependencies}
+EFFORT:      ${t.estimated_effort}
+
+Automatically triaged by ARIA — CRS Enterprise Analytics`
+    }));
+  }
+
+  if (record.requesterEmail) {
+    promises.push(transporter.sendMail({
+      from, to: record.requesterEmail,
+      subject: `✅ Your analytics request has been received — ${record.ticketId}`,
+      text:
+`Dear ${record.requester},
+
+Thank you for submitting your analytics request. ARIA has automatically processed and triaged your submission.
+
+Ticket ID:   ${record.ticketId}
+Category:    ${record.category}
+Assigned To: ${record.routed_to}
+Est. Effort: ${record.effort_estimate}
+
+Our team will be in touch within 24–48 hours.
+
+CRS Enterprise Analytics Team`
+    }));
+  }
+
+  const results = await Promise.allSettled(promises);
+  results.forEach((r, i) => {
+    if (r.status === 'rejected') console.warn(`⚠️  Email ${i + 1} failed:`, r.reason?.message);
+    else console.log(`📧 Email ${i + 1} sent: ${r.value?.messageId}`);
+  });
+}
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 app.get('/health', (req, res) => {
@@ -192,7 +270,7 @@ app.get('/health', (req, res) => {
 
 // Initial triage (manual portal) — quick analysis + chat opener
 app.post('/api/triage', async (req, res) => {
-  const { requester, department, country, description, urgency, dataDomain } = req.body;
+  const { requester, department, country, description, urgency, dataDomain, requesterEmail } = req.body;
 
   if (!requester?.trim() || !department?.trim())
     return res.status(400).json({ error: 'Name and department are required.' });
@@ -207,7 +285,7 @@ Urgency: ${urgency || 'Standard'} | Data Domain: ${dataDomain || 'Not specified'
   try {
     const raw = await callClaude([{ role: 'user', content: userMsg }], TRIAGE_SYSTEM);
     const result = parseJSON(raw);
-    const sessionContext = { requester, department, country, description, urgency, dataDomain, quickTriage: result.quickTriage };
+    const sessionContext = { requester, department, country, description, urgency, dataDomain, requesterEmail, quickTriage: result.quickTriage };
     res.json({ success: true, ...result, sessionContext });
   } catch (e) {
     console.error('Triage error:', e.message);
@@ -262,6 +340,7 @@ app.post('/api/finalize', async (req, res) => {
       requester: sessionContext.requester,
       department: sessionContext.department,
       country: sessionContext.country || null,
+      requesterEmail: sessionContext.requesterEmail || null,
       source: 'manual',
       status: 'Open',
       ...ticket
@@ -269,7 +348,8 @@ app.post('/api/finalize', async (req, res) => {
     writeTicket(record);
     console.log(`\n📋 ${ticketId} | ${ticket.category} | ${ticket.complexity} → ${ticket.routed_to}`);
 
-    // Fire Power Automate webhook if configured — non-blocking
+    // Fire notifications — non-blocking (email + optional Power Automate webhook)
+    sendNotifications(record).catch(e => console.warn('⚠️  Notification error:', e.message));
     if (process.env.POWER_AUTOMATE_WEBHOOK_URL) {
       fetch(process.env.POWER_AUTOMATE_WEBHOOK_URL, {
         method: 'POST',
