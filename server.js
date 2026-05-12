@@ -147,7 +147,7 @@ Rules:
 - Be concise and professional. This is an enterprise tool.
 - Ask at most one targeted follow-up question per response.
 - Acknowledge and incorporate everything the requester tells you.
-- When you have sufficient information to write a complete ticket, include the exact phrase "ready to finalize" anywhere in your response.
+- When you have sufficient information to write a complete ticket, include the exact phrase "ready to finalize" in your response AND explicitly tell the requester: "Click the **Generate Final Ticket** button below to create your ticket."
 - Never output JSON in this phase — plain conversational text only.`;
 
 const buildFinalizeSystem = (ctx) => `You are ARIA — Analytics Request Intelligence Agent for Catholic Relief Services (CRS).
@@ -268,6 +268,16 @@ app.post('/api/finalize', async (req, res) => {
     };
     writeTicket(record);
     console.log(`\n📋 ${ticketId} | ${ticket.category} | ${ticket.complexity} → ${ticket.routed_to}`);
+
+    // Fire Power Automate webhook if configured — non-blocking
+    if (process.env.POWER_AUTOMATE_WEBHOOK_URL) {
+      fetch(process.env.POWER_AUTOMATE_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(record)
+      }).catch(e => console.warn('⚠️  Webhook delivery failed:', e.message));
+    }
+
     res.json({ success: true, ticketId, ticket, timestamp: record.timestamp });
   } catch (e) {
     console.error('Finalize error:', e.message);

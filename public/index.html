@@ -266,6 +266,15 @@ body::before{
 }
 #sendBtn:hover:not(:disabled){background:#00d4b8;box-shadow:0 4px 16px rgba(0,194,168,.3)}
 #sendBtn:disabled{opacity:.4;cursor:not-allowed}
+.finalize-nudge{
+  display:none;margin:.25rem 0 .75rem;padding:.75rem 1rem;
+  background:rgba(0,194,168,.08);border:1px solid rgba(0,194,168,.3);
+  border-radius:5px;animation:fadeUp .4s ease both
+}
+.finalize-nudge.show{display:flex;align-items:center;gap:.75rem}
+.nudge-icon{font-size:1.1rem;flex-shrink:0}
+.nudge-text{font-family:'DM Mono',monospace;font-size:.7rem;color:var(--accent);line-height:1.5}
+.nudge-text strong{font-weight:600}
 .finalize-row{display:flex;align-items:center;justify-content:space-between;gap:1rem}
 .finalize-hint{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted);letter-spacing:.04em}
 #finalizeBtn{
@@ -554,6 +563,10 @@ body::before{
 
       <!-- Input bar -->
       <div id="chatInputBar">
+        <div class="finalize-nudge" id="finalizeNudge">
+          <div class="nudge-icon">✅</div>
+          <div class="nudge-text">ARIA has everything needed to build your ticket. When you're happy, click <strong>Generate Final Ticket →</strong> below.</div>
+        </div>
         <div class="chat-input-row">
           <textarea id="chatInput" placeholder="Reply to ARIA, add context, or ask a question..." rows="1"
             onkeydown="handleChatKey(event)" oninput="autoGrow(this)"></textarea>
@@ -932,6 +945,8 @@ async function sendMessage() {
     if (data.readyToFinalize) {
       $('finalizeBtn').classList.add('ready');
       $('finalizeHint').textContent = 'ARIA has enough to finalize — generate your ticket!';
+      $('finalizeNudge').classList.add('show');
+      $('chatMessages').scrollTop = $('chatMessages').scrollHeight;
     }
   } catch (err) {
     $('typingBubble').classList.remove('show');
@@ -1052,6 +1067,7 @@ function resetAll() {
   $('finalizeBtn').disabled = false;
   $('finalizeBtn').classList.remove('ready');
   $('finalizeHint').textContent = 'Answer ARIA\'s questions, then finalize when ready.';
+  $('finalizeNudge').classList.remove('show');
   $('chatMessages').innerHTML = '';
   $('chatInput').value = '';
   $('chatInput').style.height = '';
